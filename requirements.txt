@@ -1,0 +1,5 @@
+﻿aiogram
+python-dotenv
+openpyxl
+gspread
+oauth2client
