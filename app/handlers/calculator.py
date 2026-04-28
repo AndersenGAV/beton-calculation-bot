@@ -288,18 +288,24 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
     truck_count = 1 if volume <= 11 else ceil(volume / 11)
 
     volume_rounded = round(volume, 1)
+    whole_volume = int(volume_rounded)
+    decimal_part = round(volume_rounded - whole_volume, 1)
 
     if truck_count == 1:
         truck_parts = [volume_rounded]
     else:
-        base_part = round(volume_rounded / truck_count, 1)
-        truck_parts = [base_part for _ in range(truck_count)]
+        base = whole_volume // truck_count
+        remainder = whole_volume % truck_count
 
-        difference = round(volume_rounded - sum(truck_parts), 1)
-        truck_parts[0] = round(truck_parts[0] + difference, 1)
+        truck_parts = [
+            base + 1 if index < remainder else base
+            for index in range(truck_count)
+        ]
 
-        truck_parts.sort(reverse=True)
+        if decimal_part > 0:
+            truck_parts[-1] = round(truck_parts[-1] + decimal_part, 1)
 
+    truck_parts.sort(reverse=True)
     truck_split_text = " + ".join(f"{part:g}" for part in truck_parts)
 
     truck_split_text = " + ".join(f"{part:g}" for part in truck_parts)
