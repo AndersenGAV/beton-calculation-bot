@@ -286,15 +286,21 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
     matched_delivery_distance_km = int(data["matched_delivery_distance_km"])
 
     truck_count = 1 if volume <= 11 else ceil(volume / 11)
-    if volume.is_integer():
-        total_volume = int(volume)
-        base = total_volume // truck_count
-        remainder = total_volume % truck_count
-        truck_parts = [base + 1 if index < remainder else base for index in range(truck_count)]
+
+    volume_rounded = round(volume, 1)
+
+    if truck_count == 1:
+        truck_parts = [volume_rounded]
     else:
-        part = volume / truck_count
-        truck_parts = [part] * (truck_count - 1)
-        truck_parts.append(volume - part * (truck_count - 1))
+        base_part = round(volume_rounded / truck_count, 1)
+        truck_parts = [base_part for _ in range(truck_count)]
+
+        difference = round(volume_rounded - sum(truck_parts), 1)
+        truck_parts[0] = round(truck_parts[0] + difference, 1)
+
+        truck_parts.sort(reverse=True)
+
+    truck_split_text = " + ".join(f"{part:g}" for part in truck_parts)
 
     truck_split_text = " + ".join(f"{part:g}" for part in truck_parts)
     delivery_billable_volume_m3 = sum(part if part >= 7 else 7 for part in truck_parts)
