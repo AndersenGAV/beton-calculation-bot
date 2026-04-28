@@ -1,17 +1,28 @@
+import json
+import os
+from datetime import datetime
+
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+
 
 def save_to_google_sheets(data: dict):
     try:
         scope = [
             "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive"
+            "https://www.googleapis.com/auth/drive",
         ]
 
-        creds = ServiceAccountCredentials.from_json_keyfile_name(
-            "beton-calculation-491913-6c6fb7df141f.json",
-            scope
+        credentials_json = os.getenv("GOOGLE_CREDENTIALS")
+
+        if not credentials_json:
+            raise ValueError("GOOGLE_CREDENTIALS variable is empty or missing")
+
+        credentials_dict = json.loads(credentials_json)
+
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(
+            credentials_dict,
+            scope,
         )
 
         client = gspread.authorize(creds)
