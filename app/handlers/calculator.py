@@ -330,7 +330,7 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
         f"Марка: {concrete_short_label}\n"
         f"Объем: {volume:g} м³\n"
         f"Расстояние: {distance_km} км\n\n"
-        f"💸 Скидки: бетон -{discount_percent}%, доставка -{delivery_discount_percent}%\n\n"
+        f"💸 Скидки: бетон -{concrete_discount_percent}%, доставка -{discount}%\n\n"
 
         f"🚚 Доставка\n"
         f"Машин: {truck_count}\n"
