@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -29,7 +30,7 @@ def save_to_google_sheets(data: dict):
 
         sheet = client.open("LOGI").worksheet("LOGI")
 
-        now = datetime.now()
+        now = datetime.now(ZoneInfo("Europe/Kyiv"))
 
         row = [
             now.strftime("%Y-%m-%d"),
