@@ -315,20 +315,27 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
 
     data = await state.get_data()
 
-
     await state.clear()
+
+    text = (
+        f"✅ Расчёт готов\n\n"
+
+        f"🏭 Бетон\n"
+        f"Марка: {concrete_short_label}\n"
+        f"Объем: {volume:g} м³\n"
+        f"Расстояние: {distance_km} км\n\n"
+
+        f"🚚 Доставка\n"
+        f"Машин: {truck_count}\n"
+        f"Разбивка: {truck_split_text}\n\n"
+
+        f"💰 Итого\n"
+        f"Общая стоимость: {int(round(total_cost))} грн\n"
+        f"Стоимость 1 м³: {int(round(cost_per_m3))} грн"
+    )
+
     await message.answer(
-        f"\u2705 \u0420\u0430\u0441\u0447\u0435\u0442 \u0433\u043e\u0442\u043e\u0432\n\n"
-        f"\U0001f3ed \u0411\u0435\u0442\u043e\u043d\n"
-        f"\u041c\u0430\u0440\u043a\u0430: {concrete_short_label}\n"
-        f"\u041e\u0431\u044a\u0435\u043c: {volume:g} \u043c\u00b3\n"
-        f"\u0420\u0430\u0441\u0441\u0442\u043e\u044f\u043d\u0438\u0435: {distance_km} \u043a\u043c\n\n"
-        f"\U0001f69a \u0414\u043e\u0441\u0442\u0430\u0432\u043a\u0430\n"
-        f"\u041c\u0430\u0448\u0438\u043d: {truck_count}\n"
-        f"\u0420\u0430\u0437\u0431\u0438\u0432\u043a\u0430: {truck_split_text}\n\n"
-        f"\U0001f4b0 \u0418\u0442\u043e\u0433\u043e\n"
-        f"\u041e\u0431\u0449\u0430\u044f \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c: {int(round(total_cost))} \u0433\u0440\u043d\n"
-        f"\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c 1 \u043c\u00b3: {int(round(cost_per_m3))} \u0433\u0440\u043d",
+        text=text,
         reply_markup=build_main_menu_keyboard(),
     )
 
@@ -346,6 +353,6 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
                 "distance_discount": data.get("delivery_discount_percent"),
                 "total_cost": total_cost,
                 "price_per_m3": cost_per_m3,
-            }
+            },
         )
     )
