@@ -1,0 +1,19 @@
+# Виртуальное окружение
+.venv/
+venv/
+
+# Переменные окружения
+.env
+
+# Google ключи
+*.json
+
+# Кэш Python
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+
+# Логи
+*.log
