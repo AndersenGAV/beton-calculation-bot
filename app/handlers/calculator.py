@@ -3,43 +3,103 @@ from math import ceil
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.keyboards.calculator import (
     build_back_keyboard,
     build_concrete_keyboard,
-    build_main_menu_keyboard,
 )
-from app.services.price_loader import load_concrete_prices, load_delivery_prices
 from app.services.google_sheets import save_to_google_sheets
+from app.services.price_loader import load_concrete_prices, load_delivery_prices
 from app.states.calc_states import ConcreteCalculationStates
 
 
 router = Router()
 
-NEW_CALCULATION_TEXT = "\u041d\u043e\u0432\u044b\u0439 \u0440\u0430\u0441\u0447\u0435\u0442"
-NEW_CALCULATION_BUTTON = "\u041d\u043e\u0432\u044b\u0439 \u0440\u0430\u0441\u0447\u0435\u0442"
-MSG_PRICE_LOAD_FAILED = "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u043f\u0440\u0430\u0439\u0441. \u041f\u0440\u043e\u0432\u0435\u0440\u044c \u0444\u0430\u0439\u043b prices/prices.xlsx."
-MSG_EMPTY_CONCRETE = "\u0421\u043f\u0438\u0441\u043e\u043a \u043c\u0430\u0440\u043e\u043a \u043f\u0443\u0441\u0442. \u041f\u0440\u043e\u0432\u0435\u0440\u044c Excel-\u0444\u0430\u0439\u043b \u0441 \u0446\u0435\u043d\u0430\u043c\u0438."
-MSG_SELECT_MARK = "\u0412\u044b\u0431\u0435\u0440\u0438 \u043c\u0430\u0440\u043a\u0443 \u0431\u0435\u0442\u043e\u043d\u0430:"
-MSG_UNABLE_DETERMINE_MARK = "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0438\u0442\u044c \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u0443\u044e \u043c\u0430\u0440\u043a\u0443."
-MSG_ENTER_VOLUME = "\u0412\u0432\u0435\u0434\u0438 \u043e\u0431\u044a\u0435\u043c \u0432 \u043c\u00b3."
-MSG_BAD_VOLUME = "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u044b\u0439 \u043e\u0431\u044a\u0435\u043c \u0432 \u043c\u00b3. \u041d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: 5 \u0438\u043b\u0438 7.5"
-MSG_ENTER_CONCRETE_DISCOUNT = "\u0412\u0432\u0435\u0434\u0438 \u0441\u043a\u0438\u0434\u043a\u0443 \u043d\u0430 \u0431\u0435\u0442\u043e\u043d \u0432 %."
-MSG_BAD_CONCRETE_DISCOUNT = "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043a\u0438\u0434\u043a\u0443 \u043d\u0430 \u0431\u0435\u0442\u043e\u043d \u0446\u0435\u043b\u044b\u043c \u0447\u0438\u0441\u043b\u043e\u043c \u043e\u0442 0 \u0434\u043e 100."
-MSG_ENTER_DISTANCE = "\u0412\u0432\u0435\u0434\u0438 \u0440\u0430\u0441\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u0432 \u043a\u043c."
-MSG_BAD_DISTANCE = "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0440\u0430\u0441\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u0446\u0435\u043b\u044b\u043c \u0447\u0438\u0441\u043b\u043e\u043c \u0432 \u043a\u043c. \u041d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: 25"
-MSG_EMPTY_DISTANCE = "\u0421\u043f\u0438\u0441\u043e\u043a \u0440\u0430\u0441\u0441\u0442\u043e\u044f\u043d\u0438\u0439 \u043f\u0443\u0441\u0442. \u041f\u0440\u043e\u0432\u0435\u0440\u044c Excel-\u0444\u0430\u0439\u043b \u0441 \u0446\u0435\u043d\u0430\u043c\u0438."
-MSG_DISTANCE_LOAD_FAILED = "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u043f\u0440\u0430\u0439\u0441 \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0438. \u041f\u0440\u043e\u0432\u0435\u0440\u044c \u0444\u0430\u0439\u043b prices/prices.xlsx."
-MSG_OUT_OF_RANGE = "\u0420\u0430\u0441\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u0432\u043d\u0435 \u0434\u0438\u0430\u043f\u0430\u0437\u043e\u043d\u0430 \u043f\u0440\u0430\u0439\u0441\u0430."
-MSG_ENTER_DELIVERY_DISCOUNT = "\u0412\u0432\u0435\u0434\u0438 \u0441\u043a\u0438\u0434\u043a\u0443 \u043d\u0430 \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0443 \u0432 %."
-MSG_BAD_DELIVERY_DISCOUNT = "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0441\u043a\u0438\u0434\u043a\u0443 \u043d\u0430 \u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0443 \u0446\u0435\u043b\u044b\u043c \u0447\u0438\u0441\u043b\u043e\u043c \u043e\u0442 0 \u0434\u043e 100."
+NEW_CALCULATION_TEXT = "Новый расчет"
+
+MSG_PRICE_LOAD_FAILED = "Не удалось загрузить прайс. Проверь файл prices/prices.xlsx."
+MSG_EMPTY_CONCRETE = "Список марок пуст. Проверь Excel-файл с ценами."
+MSG_SELECT_MARK = "Выбери марку бетона:"
+MSG_UNABLE_DETERMINE_MARK = "Не удалось определить выбранную марку."
+
+MSG_ENTER_VOLUME = "Введи объем в м³."
+MSG_BAD_VOLUME = "Введите корректный объем в м³. Например: 5 или 7.5"
+
+MSG_ENTER_CONCRETE_DISCOUNT = "Введи скидку на бетон в %."
+MSG_BAD_CONCRETE_DISCOUNT = "Введите скидку на бетон целым числом от 0 до 100."
+
+MSG_ENTER_DISTANCE = "Введи расстояние в км."
+MSG_BAD_DISTANCE = "Введите расстояние целым числом в км. Например: 25"
+MSG_EMPTY_DISTANCE = "Список расстояний пуст. Проверь Excel-файл с ценами."
+MSG_DISTANCE_LOAD_FAILED = "Не удалось загрузить прайс доставки. Проверь файл prices/prices.xlsx."
+MSG_OUT_OF_RANGE = "Расстояние вне диапазона прайса."
+
+MSG_ENTER_DELIVERY_DISCOUNT = "Введи скидку на доставку в %."
+MSG_BAD_DELIVERY_DISCOUNT = "Введите скидку на доставку целым числом от 0 до 100."
+
+MSG_ENTER_CLIENT_PRICE = "Введите стоимость бетона за 1 м³ для клиента:"
+MSG_BAD_CLIENT_PRICE = "Введите корректную стоимость за 1 м³. Например: 3400"
+MSG_CLIENT_PRICE_BELOW_COST = "⚠️ Введенная сумма ниже себестоимости"
+MSG_CLIENT_PRICE_TOO_HIGH = "Нихрена себе, ты в себя поверил"
+MSG_NO_ACTIVE_CALCULATION = "Нет активного расчёта"
+
+ADD_MARGIN_CALLBACK = "margin:add"
+NEW_CALCULATION_CALLBACK = "margin:new"
+BACK_TO_CALCULATION_CALLBACK = "margin:back_to_calculation"
+BACK_TO_DELIVERY_DISCOUNT_CALLBACK = "margin:back_to_delivery_discount"
 
 
-@router.message(F.text == NEW_CALCULATION_TEXT)
-async def handle_new_calculation(message: Message, state: FSMContext) -> None:
-    await state.clear()
+class MarginCalculationStates(StatesGroup):
+    waiting_for_client_price = State()
 
+
+def build_final_calculation_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Добавить маржу",
+                    callback_data=ADD_MARGIN_CALLBACK,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="◀️ Изменить скидку доставки",
+                    callback_data=BACK_TO_DELIVERY_DISCOUNT_CALLBACK,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔄 Новый расчёт",
+                    callback_data=NEW_CALCULATION_CALLBACK,
+                )
+            ],
+        ]
+    )
+
+
+def build_margin_result_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="◀️ Назад к расчёту",
+                    callback_data=BACK_TO_CALCULATION_CALLBACK,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔄 Новый расчёт",
+                    callback_data=NEW_CALCULATION_CALLBACK,
+                )
+            ],
+        ]
+    )
+
+
+async def send_calculation_start_message(message: Message) -> None:
     try:
         items = load_concrete_prices()
     except Exception:
@@ -53,13 +113,47 @@ async def handle_new_calculation(message: Message, state: FSMContext) -> None:
     await message.answer(MSG_SELECT_MARK, reply_markup=build_concrete_keyboard(items))
 
 
+async def send_calculation_start_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    await state.clear()
+
+    try:
+        items = load_concrete_prices()
+    except Exception:
+        if callback.message:
+            await callback.message.answer(MSG_PRICE_LOAD_FAILED)
+        return
+
+    if not items:
+        if callback.message:
+            await callback.message.answer(MSG_EMPTY_CONCRETE)
+        return
+
+    if callback.message:
+        await callback.message.answer(
+            MSG_SELECT_MARK,
+            reply_markup=build_concrete_keyboard(items),
+        )
+
+
+@router.message(F.text == NEW_CALCULATION_TEXT)
+async def handle_new_calculation(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await send_calculation_start_message(message)
+
+
+@router.callback_query(F.data == NEW_CALCULATION_CALLBACK)
+async def handle_new_calculation_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    await send_calculation_start_callback(callback, state)
+
+
 @router.callback_query(F.data.startswith("concrete:"))
 async def handle_concrete_selection(callback: CallbackQuery, state: FSMContext) -> None:
     try:
         items = load_concrete_prices()
         index = int((callback.data or "").split(":", 1)[1])
         item = items[index]
-    except (IndexError, ValueError, TypeError, Exception):
+    except Exception:
         await callback.answer()
         if callback.message:
             await callback.message.answer(MSG_UNABLE_DETERMINE_MARK)
@@ -77,10 +171,12 @@ async def handle_concrete_selection(callback: CallbackQuery, state: FSMContext) 
     if callback.message:
         await callback.message.answer(
             f"Выбрана марка: {item.short_label}\n"
-            f"Цена за 1 м³ : {item.price_uah_per_m3} грн/м³\n\n"
+            f"Цена за 1 м³: {item.price_uah_per_m3} грн/м³\n\n"
             f"{MSG_ENTER_VOLUME}",
             reply_markup=build_back_keyboard("concrete"),
         )
+
+
 @router.callback_query(F.data == "back:concrete")
 async def handle_back_concrete(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
@@ -104,9 +200,11 @@ async def handle_back_concrete(callback: CallbackQuery, state: FSMContext) -> No
             reply_markup=build_concrete_keyboard(items),
         )
 
+
 @router.message(ConcreteCalculationStates.waiting_for_volume)
 async def handle_volume_input(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip().replace(",", ".")
+
     try:
         volume = float(raw_value)
     except ValueError:
@@ -124,6 +222,7 @@ async def handle_volume_input(message: Message, state: FSMContext) -> None:
         f"Объем: {volume:g} м³\n\n{MSG_ENTER_CONCRETE_DISCOUNT}",
         reply_markup=build_back_keyboard("volume"),
     )
+
 
 @router.callback_query(F.data == "back:volume")
 async def handle_back_volume(callback: CallbackQuery, state: FSMContext) -> None:
@@ -143,14 +242,17 @@ async def handle_back_volume(callback: CallbackQuery, state: FSMContext) -> None
             reply_markup=build_back_keyboard("concrete"),
         )
 
+
 @router.message(ConcreteCalculationStates.waiting_for_concrete_discount)
 async def handle_concrete_discount_input(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip()
+
     if not raw_value.isdigit():
         await message.answer(MSG_BAD_CONCRETE_DISCOUNT)
         return
 
     discount = int(raw_value)
+
     if discount < 0 or discount > 100:
         await message.answer(MSG_BAD_CONCRETE_DISCOUNT)
         return
@@ -172,6 +274,7 @@ async def handle_concrete_discount_input(message: Message, state: FSMContext) ->
         reply_markup=build_back_keyboard("concrete_discount"),
     )
 
+
 @router.callback_query(F.data == "back:concrete_discount")
 async def handle_back_concrete_discount(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
@@ -191,11 +294,13 @@ async def handle_back_concrete_discount(callback: CallbackQuery, state: FSMConte
 @router.message(ConcreteCalculationStates.waiting_for_distance)
 async def handle_distance_input(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip()
+
     if not raw_value.isdigit():
         await message.answer(MSG_BAD_DISTANCE)
         return
 
     distance = int(raw_value)
+
     if distance <= 0:
         await message.answer(MSG_BAD_DISTANCE)
         return
@@ -221,10 +326,12 @@ async def handle_distance_input(message: Message, state: FSMContext) -> None:
         matched_item = items[0]
     else:
         matched_item = None
+
         for item in items:
             if item.distance_km >= distance:
                 matched_item = item
                 break
+
         if matched_item is None:
             await message.answer(MSG_OUT_OF_RANGE)
             return
@@ -243,6 +350,7 @@ async def handle_distance_input(message: Message, state: FSMContext) -> None:
         f"{MSG_ENTER_DELIVERY_DISCOUNT}",
         reply_markup=build_back_keyboard("distance"),
     )
+
 
 @router.callback_query(F.data == "back:distance")
 async def handle_back_distance(callback: CallbackQuery, state: FSMContext) -> None:
@@ -266,24 +374,27 @@ async def handle_back_distance(callback: CallbackQuery, state: FSMContext) -> No
 @router.message(ConcreteCalculationStates.waiting_for_delivery_discount)
 async def handle_delivery_discount_input(message: Message, state: FSMContext) -> None:
     raw_value = (message.text or "").strip()
+
     if not raw_value.isdigit():
         await message.answer(MSG_BAD_DELIVERY_DISCOUNT)
         return
 
     discount = int(raw_value)
+
     if discount < 0 or discount > 100:
         await message.answer(MSG_BAD_DELIVERY_DISCOUNT)
         return
 
     data = await state.get_data()
+
     delivery_price = int(data["delivery_price_uah_per_m3"])
     delivery_price_with_discount = int(round(delivery_price * (100 - discount) / 100))
+
     volume = float(data["volume_m3"])
     concrete_short_label = data["concrete_short_label"]
     concrete_price_with_discount = float(data["concrete_price_with_discount_uah_per_m3"])
     concrete_discount_percent = int(data["concrete_discount_percent"])
     distance_km = int(data["distance_km"])
-    matched_delivery_distance_km = int(data["matched_delivery_distance_km"])
 
     truck_count = 1 if volume <= 11 else ceil(volume / 11)
 
@@ -308,26 +419,11 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
     truck_parts.sort(reverse=True)
     truck_split_text = " + ".join(f"{part:g}" for part in truck_parts)
 
-    truck_split_text = " + ".join(f"{part:g}" for part in truck_parts)
     delivery_billable_volume_m3 = sum(part if part >= 7 else 7 for part in truck_parts)
     concrete_total = volume * concrete_price_with_discount
     delivery_total = delivery_billable_volume_m3 * delivery_price_with_discount
     total_cost = concrete_total + delivery_total
     cost_per_m3 = round(total_cost / volume)
-
-    await state.update_data(
-        delivery_discount_percent=discount,
-        delivery_price_with_discount_uah_per_m3=delivery_price_with_discount,
-        delivery_billable_volume_m3=delivery_billable_volume_m3,
-        truck_count=truck_count,
-        truck_split_text=truck_split_text,
-        total_cost_uah=total_cost,
-        cost_per_m3_uah=cost_per_m3,
-    )
-
-    data = await state.get_data()
-
-    await state.clear()
 
     text = (
         f"✅ Расчёт готов\n\n"
@@ -336,6 +432,7 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
         f"Марка: {concrete_short_label}\n"
         f"Объем: {volume:g} м³\n"
         f"Расстояние: {distance_km} км\n\n"
+
         f"💸 Скидки: бетон -{concrete_discount_percent}%, доставка -{discount}%\n\n"
 
         f"🚚 Доставка\n"
@@ -347,9 +444,23 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
         f"Стоимость 1 м³: {int(round(cost_per_m3))} грн"
     )
 
+    await state.update_data(
+        delivery_discount_percent=discount,
+        delivery_price_with_discount_uah_per_m3=delivery_price_with_discount,
+        delivery_billable_volume_m3=delivery_billable_volume_m3,
+        truck_count=truck_count,
+        truck_split_text=truck_split_text,
+        total_cost_uah=total_cost,
+        cost_per_m3_uah=cost_per_m3,
+        last_calculation_text=text,
+    )
+
+    data = await state.get_data()
+    await state.set_state(None)
+
     await message.answer(
         text=text,
-        reply_markup=build_main_menu_keyboard(),
+        reply_markup=build_final_calculation_keyboard(),
     )
 
     asyncio.create_task(
@@ -369,3 +480,129 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
             },
         )
     )
+
+
+@router.callback_query(F.data == ADD_MARGIN_CALLBACK)
+async def handle_add_margin(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+
+    if not data.get("last_calculation_text") or not data.get("cost_per_m3_uah"):
+        await callback.answer(MSG_NO_ACTIVE_CALCULATION, show_alert=True)
+        return
+
+    await state.set_state(MarginCalculationStates.waiting_for_client_price)
+    await callback.answer()
+
+    if callback.message:
+        await callback.message.answer(
+            MSG_ENTER_CLIENT_PRICE,
+            reply_markup=build_margin_result_keyboard(),
+        )
+
+
+@router.message(MarginCalculationStates.waiting_for_client_price)
+async def handle_client_price_input(message: Message, state: FSMContext) -> None:
+    raw_value = (message.text or "").strip().replace(" ", "").replace(",", ".")
+
+    try:
+        client_price_per_m3 = float(raw_value)
+    except ValueError:
+        await message.answer(MSG_BAD_CLIENT_PRICE)
+        return
+
+    data = await state.get_data()
+
+    cost_per_m3 = float(data["cost_per_m3_uah"])
+    volume = float(data["volume_m3"])
+    total_cost = float(data["total_cost_uah"])
+    last_calculation_text = data.get("last_calculation_text")
+
+    if client_price_per_m3 < cost_per_m3:
+        await message.answer(MSG_CLIENT_PRICE_BELOW_COST)
+        return
+
+    if client_price_per_m3 > 7500:
+        await message.answer(MSG_CLIENT_PRICE_TOO_HIGH)
+        return
+
+    client_total = client_price_per_m3 * volume
+    margin_per_m3 = client_price_per_m3 - cost_per_m3
+    margin_total = client_total - total_cost
+
+    text = (
+        f"{last_calculation_text}\n\n"
+
+        f"👤 Для клиента\n"
+        f"Себестоимость 1 м³: {int(round(cost_per_m3))} грн\n"
+        f"Цена 1 м³ для клиента: {int(round(client_price_per_m3))} грн\n"
+        f"Общая стоимость для клиента: {int(round(client_total))} грн\n\n"
+
+        f"💼 Маржа\n"
+        f"Маржа с 1 м³: {int(round(margin_per_m3))} грн\n"
+        f"Маржа общая: {int(round(margin_total))} грн"
+    )
+
+    await state.update_data(
+        client_price_per_m3_uah=client_price_per_m3,
+        client_total_uah=client_total,
+        margin_per_m3_uah=margin_per_m3,
+        margin_total_uah=margin_total,
+        last_margin_text=text,
+    )
+    await state.set_state(None)
+
+    await message.answer(
+        text=text,
+        reply_markup=build_margin_result_keyboard(),
+    )
+
+
+@router.callback_query(F.data == BACK_TO_CALCULATION_CALLBACK)
+async def handle_back_to_calculation(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    text = data.get("last_calculation_text")
+
+    await state.set_state(None)
+    await callback.answer()
+
+    if not text:
+        if callback.message:
+            await callback.message.answer(MSG_NO_ACTIVE_CALCULATION)
+        return
+
+    if callback.message:
+        await callback.message.answer(
+            text=text,
+            reply_markup=build_final_calculation_keyboard(),
+        )
+
+
+@router.callback_query(F.data == BACK_TO_DELIVERY_DISCOUNT_CALLBACK)
+async def handle_back_to_delivery_discount(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+
+    required_fields = [
+        "distance_km",
+        "matched_delivery_distance_km",
+        "delivery_price_uah_per_m3",
+    ]
+
+    if any(data.get(field) is None for field in required_fields):
+        await callback.answer(MSG_NO_ACTIVE_CALCULATION, show_alert=True)
+        return
+
+    distance_km = int(data["distance_km"])
+    matched_delivery_distance_km = int(data["matched_delivery_distance_km"])
+    delivery_price = int(data["delivery_price_uah_per_m3"])
+
+    await state.set_state(ConcreteCalculationStates.waiting_for_delivery_discount)
+    await callback.answer()
+
+    if callback.message:
+        await callback.message.answer(
+            f"Расстояние: {distance_km} км\n"
+            f"Тариф доставки: {matched_delivery_distance_km} км\n"
+            f"Цена доставки: {delivery_price} грн/м³\n\n"
+            f"{MSG_ENTER_DELIVERY_DISCOUNT}",
+            reply_markup=build_back_keyboard("distance"),
+        )
