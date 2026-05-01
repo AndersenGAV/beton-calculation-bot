@@ -568,14 +568,13 @@ async def handle_client_price_input(message: Message, state: FSMContext) -> None
     client_message_text = (
         f"Бетон {concrete_short_label} {volume:g} м³ по "
         f"{format_unit_money(client_price_per_m3)} грн/м³\n"
-        f"З доставкою: {format_total_money(client_total)} грн"
+        f"Загальна сума з  доставкою: {format_total_money(client_total)} грн"
     )
 
     text = (
         f"{last_calculation_text}\n\n"
 
         f"👤 Для клиента\n"
-        f"Себестоимость 1 м³: {format_unit_money(cost_per_m3)} грн\n"
         f"Цена 1 м³ для клиента: {format_unit_money(client_price_per_m3)} грн\n"
         f"Общая стоимость для клиента: {format_total_money(client_total)} грн\n\n"
 
