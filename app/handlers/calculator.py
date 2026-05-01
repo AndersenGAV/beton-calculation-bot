@@ -10,7 +10,10 @@ from app.keyboards.calculator import (
     build_back_keyboard,
     build_concrete_keyboard,
 )
-from app.services.google_sheets import save_to_google_sheets
+from app.services.google_sheets import (
+    save_to_google_sheets,
+    update_margin_in_google_sheets,
+)
 from app.services.price_loader import load_concrete_prices, load_delivery_prices
 from app.states.calc_states import ConcreteCalculationStates
 
@@ -44,15 +47,25 @@ MSG_BAD_CLIENT_PRICE = "Введите корректную стоимость �
 MSG_CLIENT_PRICE_BELOW_COST = "⚠️ Введенная сумма ниже себестоимости"
 MSG_CLIENT_PRICE_TOO_HIGH = "Нихрена себе, ты в себя поверил"
 MSG_NO_ACTIVE_CALCULATION = "Нет активного расчёта"
+MSG_NO_CLIENT_TEXT = "Сначала добавь маржу"
 
 ADD_MARGIN_CALLBACK = "margin:add"
 NEW_CALCULATION_CALLBACK = "margin:new"
 BACK_TO_CALCULATION_CALLBACK = "margin:back_to_calculation"
 BACK_TO_DELIVERY_DISCOUNT_CALLBACK = "margin:back_to_delivery_discount"
+CLIENT_MESSAGE_CALLBACK = "margin:client_message"
 
 
 class MarginCalculationStates(StatesGroup):
     waiting_for_client_price = State()
+
+
+def format_total_money(value: float | int) -> str:
+    return f"{int(round(float(value))):,}".replace(",", " ")
+
+
+def format_unit_money(value: float | int) -> str:
+    return str(int(round(float(value))))
 
 
 def build_final_calculation_keyboard() -> InlineKeyboardMarkup:
@@ -83,6 +96,12 @@ def build_final_calculation_keyboard() -> InlineKeyboardMarkup:
 def build_margin_result_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📋 SMS клиенту",
+                    callback_data=CLIENT_MESSAGE_CALLBACK,
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text="◀️ Назад к расчёту",
@@ -440,8 +459,8 @@ async def handle_delivery_discount_input(message: Message, state: FSMContext) ->
         f"Разбивка: {truck_split_text}\n\n"
 
         f"💰 Итого\n"
-        f"Общая стоимость: {int(round(total_cost))} грн\n"
-        f"Стоимость 1 м³: {int(round(cost_per_m3))} грн"
+        f"Общая стоимость: {format_total_money(total_cost)} грн\n"
+        f"Стоимость 1 м³: {format_unit_money(cost_per_m3)} грн"
     )
 
     await state.update_data(
@@ -515,6 +534,7 @@ async def handle_client_price_input(message: Message, state: FSMContext) -> None
     cost_per_m3 = float(data["cost_per_m3_uah"])
     volume = float(data["volume_m3"])
     total_cost = float(data["total_cost_uah"])
+    concrete_short_label = data["concrete_short_label"]
     last_calculation_text = data.get("last_calculation_text")
 
     if client_price_per_m3 < cost_per_m3:
@@ -529,17 +549,23 @@ async def handle_client_price_input(message: Message, state: FSMContext) -> None
     margin_per_m3 = client_price_per_m3 - cost_per_m3
     margin_total = client_total - total_cost
 
+    client_message_text = (
+        f"Бетон {concrete_short_label}, {volume:g} м³ × "
+        f"{format_unit_money(client_price_per_m3)} грн/м³\n"
+        f"Итого с доставкой: {format_total_money(client_total)} грн"
+    )
+
     text = (
         f"{last_calculation_text}\n\n"
 
         f"👤 Для клиента\n"
-        f"Себестоимость 1 м³: {int(round(cost_per_m3))} грн\n"
-        f"Цена 1 м³ для клиента: {int(round(client_price_per_m3))} грн\n"
-        f"Общая стоимость для клиента: {int(round(client_total))} грн\n\n"
+        f"Себестоимость 1 м³: {format_unit_money(cost_per_m3)} грн\n"
+        f"Цена 1 м³ для клиента: {format_unit_money(client_price_per_m3)} грн\n"
+        f"Общая стоимость для клиента: {format_total_money(client_total)} грн\n\n"
 
         f"💼 Маржа\n"
-        f"Маржа с 1 м³: {int(round(margin_per_m3))} грн\n"
-        f"Маржа общая: {int(round(margin_total))} грн"
+        f"Маржа с 1 м³: {format_unit_money(margin_per_m3)} грн\n"
+        f"Маржа общая: {format_total_money(margin_total)} грн"
     )
 
     await state.update_data(
@@ -547,6 +573,7 @@ async def handle_client_price_input(message: Message, state: FSMContext) -> None
         client_total_uah=client_total,
         margin_per_m3_uah=margin_per_m3,
         margin_total_uah=margin_total,
+        client_message_text=client_message_text,
         last_margin_text=text,
     )
     await state.set_state(None)
@@ -555,6 +582,36 @@ async def handle_client_price_input(message: Message, state: FSMContext) -> None
         text=text,
         reply_markup=build_margin_result_keyboard(),
     )
+
+    asyncio.create_task(
+        asyncio.to_thread(
+            update_margin_in_google_sheets,
+            {
+                "user_id": message.from_user.id,
+                "total_cost": total_cost,
+                "price_per_m3": cost_per_m3,
+                "client_price": client_price_per_m3,
+                "client_total": client_total,
+                "margin_total": margin_total,
+            },
+        )
+    )
+
+
+@router.callback_query(F.data == CLIENT_MESSAGE_CALLBACK)
+async def handle_client_message(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    client_message_text = data.get("client_message_text")
+
+    await callback.answer()
+
+    if not client_message_text:
+        if callback.message:
+            await callback.message.answer(MSG_NO_CLIENT_TEXT)
+        return
+
+    if callback.message:
+        await callback.message.answer(client_message_text)
 
 
 @router.callback_query(F.data == BACK_TO_CALCULATION_CALLBACK)
