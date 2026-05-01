@@ -73,7 +73,7 @@ def build_final_calculation_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="➕ Добавить маржу",
+                    text="💵 Добавить маржу",
                     callback_data=ADD_MARGIN_CALLBACK,
                 )
             ],
@@ -102,6 +102,25 @@ def build_margin_result_keyboard() -> InlineKeyboardMarkup:
                     callback_data=CLIENT_MESSAGE_CALLBACK,
                 )
             ],
+            [
+                InlineKeyboardButton(
+                    text="◀️ Назад к расчёту",
+                    callback_data=BACK_TO_CALCULATION_CALLBACK,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔄 Новый расчёт",
+                    callback_data=NEW_CALCULATION_CALLBACK,
+                )
+            ],
+        ]
+    )
+
+
+def build_after_client_message_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="◀️ Назад к расчёту",
@@ -513,10 +532,7 @@ async def handle_add_margin(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
     if callback.message:
-        await callback.message.answer(
-            MSG_ENTER_CLIENT_PRICE,
-            reply_markup=build_margin_result_keyboard(),
-        )
+        await callback.message.answer(MSG_ENTER_CLIENT_PRICE)
 
 
 @router.message(MarginCalculationStates.waiting_for_client_price)
@@ -550,9 +566,9 @@ async def handle_client_price_input(message: Message, state: FSMContext) -> None
     margin_total = client_total - total_cost
 
     client_message_text = (
-        f"Бетон {concrete_short_label}, {volume:g} м³ × "
+        f"Бетон {concrete_short_label} {volume:g} м³ по "
         f"{format_unit_money(client_price_per_m3)} грн/м³\n"
-        f"Итого с доставкой: {format_total_money(client_total)} грн"
+        f"З доставкою: {format_total_money(client_total)} грн"
     )
 
     text = (
@@ -611,7 +627,10 @@ async def handle_client_message(callback: CallbackQuery, state: FSMContext) -> N
         return
 
     if callback.message:
-        await callback.message.answer(client_message_text)
+        await callback.message.answer(
+            text=client_message_text,
+            reply_markup=build_after_client_message_keyboard(),
+        )
 
 
 @router.callback_query(F.data == BACK_TO_CALCULATION_CALLBACK)
